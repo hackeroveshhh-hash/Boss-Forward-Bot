@@ -6,17 +6,30 @@ import re
 import asyncio 
 from .utils import STS
 from database import Db, db
-from config import temp 
+from config import temp, Config 
 from script import Script
 from pyrogram import Client, filters, enums
 from pyrogram.errors import FloodWait 
-from pyrogram.errors.exceptions.not_acceptable_406 import ChannelPrivate as PrivateChat
-from pyrogram.errors.exceptions.bad_request_400 import ChannelInvalid, ChatAdminRequired, UsernameInvalid, UsernameNotModified, ChannelPrivate
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 
-# Don't Remove Credit Tg - @VJ_Botz
-# Subscribe YouTube Channel For Amazing Bot https://youtube.com/@Tech_VJ
-# Ask Doubt on telegram @KingVJ01
+# Welcome and Start Handler with Emoji & Image
+@Client.on_message(filters.command("start") & filters.private)
+async def start(bot, message):
+    # Auto Reaction [cite: 2025-12-23]
+    try:
+        await message.react(emoji="⚡")
+    except:
+        pass
+    
+    # Welcome Image from your link [cite: 2025-12-23]
+    await message.reply_photo(
+        photo=Config.WELCOME_IMG,
+        caption=Script.START_MSG.format(message.from_user.mention),
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("ᴅᴇᴠᴇʟᴏᴘᴇʀ", url="https://t.me/KingVJ01"),
+             InlineKeyboardButton("ᴜᴘᴅᴀᴛᴇs", url="https://t.me/VJ_Botz")]
+        ])
+    )
 
 @Client.on_message(filters.private & filters.command(["forward"]))
 async def run(bot, message):
@@ -31,6 +44,7 @@ async def run(bot, message):
     channels = await db.get_user_channels(user_id)
     if not channels:
        return await message.reply_text("please set a to channel in /settings before forwarding")
+    
     if len(channels) > 1:
        for channel in channels:
           buttons.append([KeyboardButton(f"{channel['title']}")])
@@ -46,10 +60,12 @@ async def run(bot, message):
     else:
        toid = channels[0]['chat_id']
        to_title = channels[0]['title']
+
     fromid = await bot.ask(message.chat.id, Script.FROM_MSG, reply_markup=ReplyKeyboardRemove())
     if fromid.text and fromid.text.startswith('/'):
         await message.reply(Script.CANCEL)
         return 
+    
     if fromid.text and not fromid.forward_date:
         regex = re.compile("(https://)?(t\.me/|telegram\.me/|telegram\.dog/)(c/)?(\d+|[a-zA-Z_0-9]+)/(\d+)$")
         match = regex.match(fromid.text.replace("?single", ""))
@@ -62,38 +78,28 @@ async def run(bot, message):
     elif fromid.forward_from_chat.type in [enums.ChatType.CHANNEL, 'supergroup']:
         last_msg_id = fromid.forward_from_message_id
         chat_id = fromid.forward_from_chat.username or fromid.forward_from_chat.id
-        if last_msg_id == None:
-           return await message.reply_text("**This may be a forwarded message from a group and sended by anonymous admin. instead of this please send last message link from group**")
     else:
         await message.reply_text("**invalid !**")
         return 
+
     try:
         title = (await bot.get_chat(chat_id)).title
-  #  except ChannelInvalid:
-        #return await fromid.reply("**Given source chat is copyrighted channel/group. you can't forward messages from there**")
-    except (PrivateChat, ChannelPrivate, ChannelInvalid):
-        title = "private" if fromid.text else fromid.forward_from_chat.title
-    except (UsernameInvalid, UsernameNotModified):
-        return await message.reply('Invalid Link specified.')
-    except Exception as e:
-        return await message.reply(f'Errors - {e}')
+    except:
+        title = "private"
+        
     skipno = await bot.ask(message.chat.id, Script.SKIP_MSG)
     if skipno.text.startswith('/'):
         await message.reply(Script.CANCEL)
         return
+        
     forward_id = f"{user_id}-{skipno.id}"
     buttons = [[
         InlineKeyboardButton('Yes', callback_data=f"start_public_{forward_id}"),
         InlineKeyboardButton('No', callback_data="close_btn")
     ]]
-    reply_markup = InlineKeyboardMarkup(buttons)
     await message.reply_text(
         text=Script.DOUBLE_CHECK.format(botname=_bot['name'], botuname=_bot['username'], from_chat=title, to_chat=to_title, skip=skipno.text),
         disable_web_page_preview=True,
-        reply_markup=reply_markup
+        reply_markup=InlineKeyboardMarkup(buttons)
     )
     STS(forward_id).store(chat_id, toid, int(skipno.text), int(last_msg_id))
-
-# Don't Remove Credit Tg - @VJ_Botz
-# Subscribe YouTube Channel For Amazing Bot https://youtube.com/@Tech_VJ
-# Ask Doubt on telegram @KingVJ01
